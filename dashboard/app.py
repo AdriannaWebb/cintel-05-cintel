@@ -8,22 +8,20 @@ from shiny import reactive, render
 # From shiny.express, import just ui and inputs if needed
 from shiny.express import ui
 
-# Imports from Python Standard Library to simulate live data
 import random
 from datetime import datetime
 from collections import deque
-
-# Import pandas for working with data
 import pandas as pd
+import plotly.express as px
+from shinywidgets import render_plotly
+from scipy import stats
 
 # --------------------------------------------
 # Import icons as you like
 # --------------------------------------------
-# add favicons to your requirements.txt 
-# and install to active project virtual environment
 
-from faicons import icon_svg  
-
+# https://fontawesome.com/v4/cheatsheet/
+from faicons import icon_svg
 
 # --------------------------------------------
 # Shiny EXPRESS VERSION
@@ -35,7 +33,7 @@ from faicons import icon_svg
 # Use a type hint to make it clear that it's an integer (: int)
 # --------------------------------------------
 
-UPDATE_INTERVAL_SECS: int = 1
+UPDATE_INTERVAL_SECS: int = 3
 
 # --------------------------------------------
 # Initialize a REACTIVE VALUE with a common data structure
@@ -47,7 +45,6 @@ UPDATE_INTERVAL_SECS: int = 1
 DEQUE_SIZE: int = 5
 reactive_value_wrapper = reactive.value(deque(maxlen=DEQUE_SIZE))
 
-
 # --------------------------------------------
 # Initialize a REACTIVE CALC that all display components can call
 # to get the latest data and display it.
@@ -56,6 +53,7 @@ reactive_value_wrapper = reactive.value(deque(maxlen=DEQUE_SIZE))
 # It returns a tuple with everything needed to display the data.
 # Very easy to expand or modify.
 # --------------------------------------------
+
 
 @reactive.calc()
 def reactive_calc_combined():
@@ -85,37 +83,41 @@ def reactive_calc_combined():
 
 
 
+
 # Define the Shiny UI Page layout
 # Call the ui.page_opts() function
 # Set title to a string in quotes that will appear at the top
 # Set fillable to True to use the whole page width for the UI
-
-ui.page_opts(title="PyShiny Express: Live Data With Value Card (Font Awesome Icon + 3 strings)", fillable=True)
+ui.page_opts(title="PyShiny Express: Live Data Example", fillable=True)
 
 # Sidebar is typically used for user interaction/information
 # Note the with statement to create the sidebar followed by a colon
 # Everything in the sidebar is indented consistently
-
 with ui.sidebar(open="open"):
 
-  ui.h2("Antarctic Explorer", class_="text-center")
-  ui.p(
+    ui.h2("Antarctic Explorer", class_="text-center")
+    ui.p(
         "A demonstration of real-time temperature readings in Antarctica.",
         class_="text-center",
     )
-  ui.hr()
-  ui.h6("Links:")
-  ui.a(
+    ui.hr()
+    ui.h6("Links:")
+    ui.a(
         "GitHub Source",
-        href="https://github.com/denisecase/cintel-05-cintel-fancy",
+        href="https://github.com/denisecase/cintel-05-cintel",
         target="_blank",
-  )
-  ui.a(
+    )
+    ui.a(
         "GitHub App",
-        href="https://denisecase.github.io/cintel-05-cintel-fancy/",
+        href="https://denisecase.github.io/cintel-05-cintel/",
         target="_blank",
-  )
-  ui.a("PyShiny", href="https://shiny.posit.co/py/", target="_blank")
+    )
+    ui.a("PyShiny", href="https://shiny.posit.co/py/", target="_blank")
+    ui.a(
+        "PyShiny Express",
+        href="hhttps://shiny.posit.co/blog/posts/shiny-express/",
+        target="_blank",
+    )
 
 # In Shiny Express, everything not in the sidebar is in the main panel
 
@@ -147,10 +149,60 @@ with ui.layout_columns():
             return f"{latest_dictionary_entry['timestamp']}"
 
 
-with ui.layout_columns():
-    with ui.card():
-        ui.card_header("Current Data (placeholder only)")
+#with ui.card(full_screen=True, min_height="40%"):
+with ui.card(full_screen=True):
+    ui.card_header("Most Recent Readings")
 
-with ui.layout_columns():
-    with ui.card():
-        ui.card_header("Current Chart (placeholder only)")
+    @render.data_frame
+    def display_df():
+        """Get the latest reading and return a dataframe with current readings"""
+        deque_snapshot, df, latest_dictionary_entry = reactive_calc_combined()
+        pd.set_option('display.width', None)        # Use maximum width
+        return render.DataGrid( df,width="100%")
+
+with ui.card():
+    ui.card_header("Chart with Current Trend")
+
+    @render_plotly
+    def display_plot():
+        # Fetch from the reactive calc function
+        deque_snapshot, df, latest_dictionary_entry = reactive_calc_combined()
+
+        # Ensure the DataFrame is not empty before plotting
+        if not df.empty:
+            # Convert the 'timestamp' column to datetime for better plotting
+            df["timestamp"] = pd.to_datetime(df["timestamp"])
+
+            # Create scatter plot for readings
+            # pass in the df, the name of the x column, the name of the y column,
+            # and more
+        
+            fig = px.scatter(df,
+            x="timestamp",
+            y="temp",
+            title="Temperature Readings with Regression Line",
+            labels={"temp": "Temperature (°C)", "timestamp": "Time"},
+            color_discrete_sequence=["blue"] )
+            
+            # Linear regression - we need to get a list of the
+            # Independent variable x values (time) and the
+            # Dependent variable y values (temp)
+            # then, it's pretty easy using scipy.stats.linregress()
+
+            # For x let's generate a sequence of integers from 0 to len(df)
+            sequence = range(len(df))
+            x_vals = list(sequence)
+            y_vals = df["temp"]
+
+            slope, intercept, r_value, p_value, std_err = stats.linregress(x_vals, y_vals)
+            df['best_fit_line'] = [slope * x + intercept for x in x_vals]
+
+            # Add the regression line to the figure
+            fig.add_scatter(x=df["timestamp"], y=df['best_fit_line'], mode='lines', name='Regression Line')
+
+            # Update layout as needed to customize further
+            fig.update_layout(xaxis_title="Time",yaxis_title="Temperature (°C)")
+
+        return fig
+
+
