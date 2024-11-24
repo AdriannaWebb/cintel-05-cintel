@@ -1,1 +1,3 @@
-
+faicons
+shiny
+shinylive
