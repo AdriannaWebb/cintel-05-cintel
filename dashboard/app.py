@@ -33,7 +33,7 @@ from faicons import icon_svg
 # Use a type hint to make it clear that it's an integer (: int)
 # --------------------------------------------
 
-UPDATE_INTERVAL_SECS: int = 3
+UPDATE_INTERVAL_SECS: int = 5
 
 # --------------------------------------------
 # Initialize a REACTIVE VALUE with a common data structure
@@ -42,7 +42,7 @@ UPDATE_INTERVAL_SECS: int = 3
 # This reactive value is a wrapper around a DEQUE of readings
 # --------------------------------------------
 
-DEQUE_SIZE: int = 5
+DEQUE_SIZE: int = 20
 reactive_value_wrapper = reactive.value(deque(maxlen=DEQUE_SIZE))
 
 # --------------------------------------------
@@ -88,7 +88,11 @@ def reactive_calc_combined():
 # Call the ui.page_opts() function
 # Set title to a string in quotes that will appear at the top
 # Set fillable to True to use the whole page width for the UI
-ui.page_opts(title="PyShiny Express: Live Data Example", fillable=True)
+ui.page_opts(
+    title="Adrianna Webb's Pyshiny Project",
+    fillable=True,
+    style="background-color: lightblue"
+    )
 
 # Sidebar is typically used for user interaction/information
 # Note the with statement to create the sidebar followed by a colon
@@ -122,23 +126,33 @@ with ui.sidebar(open="open"):
 # In Shiny Express, everything not in the sidebar is in the main panel
 
 with ui.layout_columns():
-    with ui.value_box(
-        showcase=icon_svg("sun"),
-        theme="bg-gradient-blue-purple",
-    ):
-
-        "Current Temperature"
-
-        @render.text
-        def display_temp():
-            """Get the latest reading and return a temperature string"""
+    with ui.card(full_screen=True):
+        ui.card_header("Current Temp")
+    
+        # Display the temperature with status in one row
+        @render.ui
+        def display_combined_temp():
+            """Display the current temperature with status and icon."""
             deque_snapshot, df, latest_dictionary_entry = reactive_calc_combined()
-            return f"{latest_dictionary_entry['temp']} C"
+            current_temp = latest_dictionary_entry["temp"]
+            
+            # Check if the temperature is warmer or cooler and set icon/status
+            if current_temp > -17:  
+                status_icon = icon_svg("sun")  # Orange sun
+                status_text = "Warmer than usual"
+            else:
+                status_icon = icon_svg("snowflake")  # Blue snowflake
+                status_text = "Cooler than usual"
+            
+            # Combine temperature, icon, and status into a single UI element
+            return ui.div(
+                ui.span(f"{current_temp} C", style="font-size: 1em; margin-right: 10px;"),
+                status_icon,
+                ui.span(status_text, style="margin-left: 10px;"),
+                class_="d-flex align-items-center",
+            )
 
-        "warmer than usual"
-
-  
-
+        
     with ui.card(full_screen=True):
         ui.card_header("Current Date and Time")
 
@@ -163,6 +177,7 @@ with ui.card(full_screen=True):
 with ui.card():
     ui.card_header("Chart with Current Trend")
 
+    
     @render_plotly
     def display_plot():
         # Fetch from the reactive calc function
